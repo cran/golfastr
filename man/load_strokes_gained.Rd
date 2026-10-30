@@ -4,10 +4,15 @@
 \alias{load_strokes_gained}
 \title{Load Strokes Gained Statistics}
 \usage{
-load_strokes_gained(player = NULL)
+load_strokes_gained(player = NULL, use_bundled = FALSE, year = NULL)
 }
 \arguments{
 \item{player}{Optional player name filter (partial match, case-insensitive).}
+
+\item{use_bundled}{If \code{TRUE}, skip the download and use the dataset
+bundled with the package. Defaults to \code{FALSE}.}
+
+\item{year}{Optional season year filter (e.g., 2026).}
 }
 \value{
 A tibble with one row per player and columns:
@@ -26,18 +31,19 @@ A tibble with one row per player and columns:
   }
 }
 \description{
-Returns pre-built strokes gained data from the PGA Tour, with all six
-SG categories per player: putting, around the green, approach, off the tee,
-tee to green, and total.
+Returns strokes gained data from the PGA Tour, with all six SG categories
+per player: putting, around the green, approach, off the tee, tee to green,
+and total.
 }
 \details{
-Data is sourced from the PGA Tour and updated with each package release.
-To filter by player, use standard dplyr operations on the returned tibble.
+By default, downloads the latest data from GitHub releases (updated weekly).
+Falls back to the bundled dataset shipped with the package if the download
+fails (e.g., no internet connection).
 }
 \examples{
-# Get all strokes gained data
-sg <- load_strokes_gained()
-
-# Look up a specific player
-load_strokes_gained("Scheffler")
+sg <- load_strokes_gained(use_bundled = TRUE)
+load_strokes_gained("Scheffler", use_bundled = TRUE, year = 2026)
+\donttest{
+load_strokes_gained()
+}
 }

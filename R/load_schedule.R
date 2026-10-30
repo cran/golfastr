@@ -3,7 +3,8 @@
 #' Retrieves the tournament schedule for a given year and tour.
 #'
 #' @param year Season year (e.g., 2026). Defaults to current year.
-#' @param tour Tour identifier. Currently supports "pga" (default).
+#' @param tour Tour identifier: `"pga"` (default), `"liv"`, `"lpga"`,
+#'   `"euro"`, or `"champions"`.
 #' @return A tibble with columns:
 #'   \itemize{
 #'     \item \code{event_id}: ESPN event identifier
@@ -26,7 +27,7 @@ load_schedule <- function(year = as.integer(format(Sys.Date(), "%Y")),
                                 query_params = list(dates = year))
 
   if (is.null(response$leagues) || length(response$leagues) == 0) {
-    stop("No schedule data available for year: ", year, ", tour: ", tour)
+    cli::cli_abort("No schedule data available for year {.val {year}} and tour {.val {tour}}.")
   }
 
   calendar <- response$leagues$calendar[[1]]
@@ -39,9 +40,10 @@ load_schedule <- function(year = as.integer(format(Sys.Date(), "%Y")),
   )
 }
 
-#' @describeIn load_schedule Legacy function for backwards compatibility
+#' @describeIn load_schedule Deprecated, use `load_schedule()` instead
 #' @return A tibble with tournament schedule data
 #' @export
 get_pga_schedule <- function(year = format(Sys.Date(), "%Y")) {
+  deprecate_warn("0.2.0", "get_pga_schedule()", "load_schedule()")
   load_schedule(year = as.integer(year), tour = "pga")
 }

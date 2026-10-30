@@ -1,8 +1,14 @@
-# golfastR <img src="https://raw.githubusercontent.com/array-carpenter/golfastr/main/man/figures/logo.png" align="right" height="139" alt="golfastR logo" />
+# golfastr <img src="https://raw.githubusercontent.com/array-carpenter/golfastr/main/man/figures/logo.png" align="right" height="139" alt="golfastr logo" />
+
+<!-- badges: start -->
+[![CRAN status](https://www.r-pkg.org/badges/version/golfastr)](https://CRAN.R-project.org/package=golfastr)
+[![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/golfastr)](https://CRAN.R-project.org/package=golfastr)
+[![R-CMD-check](https://github.com/array-carpenter/golfastr/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/array-carpenter/golfastr/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
 
 > Fast, tidy Pro Golf data in R
 
-`golfastR` provides easy access to professional golf data from ESPN with functions to get leaderboards and hole-by-hole scores in tidy data formats ready for analysis. Supports **PGA Tour**, **LIV Golf**, **LPGA**, **DP World Tour**, and **Champions Tour**.
+`golfastr` provides easy access to professional golf data from ESPN with functions to get leaderboards and hole-by-hole scores in tidy data formats ready for analysis. Supports **PGA Tour**, **LIV Golf**, **LPGA**, **DP World Tour**, and **Champions Tour**.
 
 ## Installation
 
@@ -46,16 +52,37 @@ liv_schedule <- load_schedule(2026, tour = "liv")
 adelaide <- load_leaderboard(2026, "Adelaide", tour = "liv")
 ```
 
+## Hosted Data
+
+Completed PGA Tour tournaments are served from pre-built data files hosted
+on [GitHub releases](https://github.com/array-carpenter/golfastr/releases),
+updated daily. This makes loading a full season near-instant and provides
+hole-by-hole data for the full field, not just the top finishers:
+
+```r
+# Loads from hosted data - seconds, not minutes
+season <- load_leaderboard(2025)
+
+# Full-field hole-by-hole scoring
+holes <- load_holes(2025, "Masters")
+
+# Bypass hosted data for in-progress tournaments
+live_lb <- load_leaderboard(2026, "Travelers", live = TRUE)
+```
+
+If the hosted data is unavailable (or a tournament is still in progress),
+both functions automatically fall back to the live ESPN API.
+
 ## Strokes Gained
 
 Pre-built PGA Tour strokes gained data ships with the package:
 
 ```r
-# Get all strokes gained data
+# Latest strokes gained (downloads if needed; bundled data is the fallback)
 sg <- load_strokes_gained()
 
-# Look up a specific player
-load_strokes_gained("Scheffler")
+# One player in one season, no network
+load_strokes_gained("Scheffler", use_bundled = TRUE, year = 2026)
 ```
 
 Returns per-round averages for all six SG categories:
@@ -68,6 +95,43 @@ Returns per-round averages for all six SG categories:
 | sg_ott | Strokes Gained: Off the Tee |
 | sg_t2g | Strokes Gained: Tee to Green |
 | sg_total | Strokes Gained: Total |
+
+## ShotLink
+
+Every PGA Tour stroke since 2012, plus tee times and course setup by round:
+
+```r
+shots <- load_shots(2026, "Masters")
+tee_times <- load_tee_times(2026, "Masters")
+setup <- load_course_setup(2026, "Masters")
+
+# Strokes gained for every shot, then totals by round
+sg <- calculate_strokes_gained(shots)
+summarise_strokes_gained(sg, by = "round")
+```
+
+## Win Probability
+
+`load_holes()` files carry `win_prob`, `win_prob_before`, `wpa` and
+`skill_rating` for every PGA Tour stroke play event since 2004.
+`add_win_probability()` computes them for an event in progress.
+
+## IDs, Logos and a Local Database
+
+```r
+# ESPN to PGA Tour ID crosswalk
+load_player_ids("Scheffler")
+load_event_ids(2026)
+
+# Logo image URLs for tours, tournaments, courses and clubs
+load_logos("club", "Augusta")
+
+# What's in the bag: equipment by club, and switches
+load_witb("Scheffler", year = 2026, slot = "putter")
+
+# Build or refresh a local SQLite database
+update_db(dbdir = "~/golf")
+```
 
 ## Core Functions
 
@@ -126,13 +190,14 @@ players <- load_players(2026)
 | player_id | ESPN athlete ID |
 | player_name | Player display name |
 | total_score | Total strokes |
-| score_to_par | Score vs par (e.g., "-11") |
+| score_to_par | Score vs par as text (e.g., "-11", `"E"` for even par) |
 | status | Player status |
 
 ### Hole-by-Hole
 
 | Field | Description |
 |-------|-------------|
+| position | Final leaderboard standing |
 | round | Round number (1-4) |
 | hole | Hole number (1-18) |
 | par | Par for hole |
@@ -171,18 +236,15 @@ check_season(2025, file_path = "pga_2025.rds")
 
 ## Analysis Functions
 
+Pass a tibble from `load_leaderboard()`, or a file saved with `save_to_rds()`:
+
 ```r
-# Player season summary
-player_summary("Scheffler", file_path = "golf_data.rds")
+season <- load_leaderboard(2025)
 
-# Compare multiple players
-compare_players(c("Scheffler", "McIlroy"), file_path = "golf_data.rds")
-
-# Win leaders
-win_leaders(file_path = "golf_data.rds")
-
-# Scoring average leaders
-scoring_avg_leaders(file_path = "golf_data.rds")
+player_summary("Scheffler", data = season)
+compare_players(c("Scheffler", "McIlroy"), data = season)
+win_leaders(data = season)
+scoring_avg_leaders(data = season)
 ```
 
 ## Data Source

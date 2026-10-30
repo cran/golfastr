@@ -1,25 +1,27 @@
 #' Load PGA Tour Schedule
 #'
-#' Loads the PGA Tour tournament schedule for a given year.
-#' Similar to nflfastR's schedule loading functions.
+#' Deprecated. Use [load_schedule()] instead, which supports all tours and
+#' shares its output format with the rest of the package.
 #'
 #' @param year Numeric. The year to load (e.g., 2025).
 #' @param tour Character. Tour type, default "pga".
 #' @return A tibble with tournament schedule data.
-#' @export
 #' @examples
 #' \donttest{
-#' schedule <- load_pga_schedule(2025)
+#' load_pga_schedule(2025)
 #' }
+#' @export
 load_pga_schedule <- function(year, tour = "pga") {
-  get_pga_schedule(year)
+  deprecate_warn("0.2.0", "load_pga_schedule()", "load_schedule()")
+  load_schedule(year = as.integer(year), tour = tour)
 }
 
 
 #' Load PGA Leaderboards
 #'
-#' Loads tournament leaderboard data for specified year(s) and tournament(s).
-#' This is similar to nflfastR's data loading pattern.
+#' Deprecated. Use [load_leaderboard()] instead, which serves completed
+#' tournaments from pre-built hosted files rather than one live request
+#' per event.
 #'
 #' @param years Numeric vector. Year(s) to load (e.g., 2025 or 2023:2025).
 #' @param tournaments Character vector. Optional tournament event IDs or names
@@ -27,23 +29,20 @@ load_pga_schedule <- function(year, tour = "pga") {
 #' @param tour Character. Tour type, default "pga".
 #' @param dir Character. Optional directory to save CSV files.
 #' @return A tibble with leaderboard data.
-#' @export
 #' @examples
 #' \donttest{
-#' # Load specific tournament
-#' masters <- load_pga_leaderboards(2025, tournaments = "401703504")
-#'
-#' # Load all 2025 tournaments
-#' all_2025 <- load_pga_leaderboards(2025)
+#' load_pga_leaderboards(2025, "Masters Tournament")
 #' }
+#' @export
 load_pga_leaderboards <- function(years,
                                    tournaments = NULL,
                                    tour = "pga",
                                    dir = NULL) {
+  deprecate_warn("0.2.0", "load_pga_leaderboards()", "load_leaderboard()")
   all_data <- list()
 
   for (year in years) {
-    schedule <- get_pga_schedule(year)
+    schedule <- load_schedule(year = as.integer(year), tour = tour)
 
     if (!is.null(tournaments)) {
       # Filter to specified tournaments
@@ -58,13 +57,13 @@ load_pga_leaderboards <- function(years,
     for (i in seq_len(nrow(schedule))) {
       event_id <- schedule$event_id[i]
       tryCatch({
-        lb <- get_tournament_leaderboard(event_id)
+        lb <- fetch_leaderboard_fast(event_id, as.integer(year), tour)
         if (!is.null(lb) && nrow(lb) > 0) {
           lb$year <- year
           all_data[[length(all_data) + 1]] <- lb
         }
       }, error = function(e) {
-        message(sprintf("Failed to load event %s: %s", event_id, e$message))
+        cli::cli_inform("Failed to load event {event_id}: {conditionMessage(e)}")
       })
     }
   }
@@ -93,7 +92,8 @@ load_pga_leaderboards <- function(years,
 
 #' Load PGA Hole-by-Hole Data
 #'
-#' Loads detailed hole-by-hole scoring data for specified tournaments.
+#' Deprecated. Use [load_holes()] instead, which serves full-field
+#' scorecards for completed tournaments from pre-built hosted files.
 #'
 #' @param years Numeric vector. Year(s) to load.
 #' @param tournaments Character vector. Optional tournament event IDs or names.
@@ -103,24 +103,21 @@ load_pga_leaderboards <- function(years,
 #' @param tour Character. Tour type, default "pga".
 #' @param dir Character. Optional directory to save CSV files.
 #' @return A tibble with hole-by-hole scoring data.
-#' @export
 #' @examples
 #' \donttest{
-#' # Load Masters hole-by-hole for top 10
-#' masters_hbh <- load_pga_hbh(2025, tournaments = "401703504")
-#'
-#' # Load with more players
-#' masters_hbh <- load_pga_hbh(2025, tournaments = "401703504", top_n = 50)
+#' load_pga_hbh(2025, "Masters Tournament", top_n = 3)
 #' }
+#' @export
 load_pga_hbh <- function(years,
                          tournaments = NULL,
                          top_n = 10,
                          tour = "pga",
                          dir = NULL) {
+  deprecate_warn("0.2.0", "load_pga_hbh()", "load_holes()")
   all_data <- list()
 
   for (year in years) {
-    schedule <- get_pga_schedule(year)
+    schedule <- load_schedule(year = as.integer(year), tour = tour)
 
     if (!is.null(tournaments)) {
       schedule <- schedule[schedule$event_id %in% tournaments |
@@ -143,7 +140,7 @@ load_pga_hbh <- function(years,
           all_data[[length(all_data) + 1]] <- summary$scorecards
         }
       }, error = function(e) {
-        message(sprintf("Failed to load event %s: %s", event_id, e$message))
+        cli::cli_inform("Failed to load event {event_id}: {conditionMessage(e)}")
       })
     }
   }
@@ -176,7 +173,7 @@ load_pga_hbh <- function(years,
 #' @param event_id ESPN event ID
 #' @param top_n Number of top finishers to get scorecards for
 #' @return List with leaderboard and scorecards
-#' @keywords internal
+#' @noRd
 get_tournament_summary <- function(event_id, top_n = NULL) {
   # Get leaderboard using new API
   year <- as.integer(format(Sys.Date(), "%Y"))

@@ -2,20 +2,43 @@
 #'
 #' Retrieves hole-by-hole scoring data for tournaments.
 #'
+#' For PGA Tour data, completed tournaments from 2004 on are served from
+#' pre-built full-field files hosted on GitHub releases (updated daily),
+#' avoiding the one-request-per-player cost of the live ESPN API. The live
+#' API is used as a fallback for in-progress tournaments, other tours, or
+#' when the hosted data is unavailable. Hosted files also carry win
+#' probability for every hole; see [add_win_probability()] for the method.
+#'
 #' @param year Season year (e.g., 2026). Defaults to current year.
 #' @param tournament Tournament identifier - either event_id or partial name match.
 #' @param top_n Number of top finishers to include. Default NULL returns all.
-#' @param tour Tour identifier. Currently supports "pga" (default).
+#' @param tour Tour identifier: `"pga"` (default), `"liv"`, `"lpga"`,
+#'   `"euro"`, or `"champions"`.
+#' @param live If TRUE, skip the hosted data and fetch directly from the
+#'   ESPN API. Defaults to FALSE.
 #' @return A tibble with hole-by-hole data including:
 #'   \itemize{
 #'     \item \code{player_id}: ESPN athlete ID
 #'     \item \code{player_name}: Player display name
-#'     \item \code{round}: Round number (1-4)
+#'     \item \code{position}: Final leaderboard standing
+#'     \item \code{round}: Round number (1-4; playoff holes come as an
+#'       extra round)
 #'     \item \code{hole}: Hole number (1-18)
 #'     \item \code{par}: Par for the hole
 #'     \item \code{score}: Player's score on the hole
 #'     \item \code{score_type}: BIRDIE, PAR, BOGEY, EAGLE, etc.
 #'     \item \code{tournament_id}: Event ID
+#'     \item \code{field_avg}, \code{vs_field}, \code{to_par},
+#'       \code{cume_to_par}: Field average on the hole that round, strokes
+#'       against it, score to par and running score to par (hosted data)
+#'     \item \code{win_prob}, \code{win_prob_before}, \code{wpa}: Chance
+#'       of winning after and before the hole, and the difference (hosted
+#'       PGA Tour stroke play events)
+#'     \item \code{skill_rating}: Pre-event rating, strokes per round
+#'       better than an average tour player
+#'     \item \code{hole_order_source}: \code{"shotlink"} when the
+#'       player's starting tee is known, else \code{"assumed"} (holes 1 to
+#'       18)
 #'   }
 #' @export
 #' @examples
@@ -26,10 +49,35 @@
 load_holes <- function(year = as.integer(format(Sys.Date(), "%Y")),
                        tournament = NULL,
                        top_n = NULL,
-                       tour = "pga") {
+                       tour = "pga",
+                       live = FALSE) {
 
   if (is.null(tournament)) {
-    stop("tournament parameter is required for load_holes()")
+    cli::cli_abort("{.arg tournament} is required for {.fn load_holes}.")
+  }
+
+  # Try pre-built data from GitHub releases first
+  if (!live && tolower(tour) == "pga") {
+    hosted <- release_load("holes", sprintf("holes_%d.rds", year))
+    if (!is.null(hosted)) {
+      if (tournament %in% hosted$tournament_id) {
+        result <- hosted[hosted$tournament_id == tournament, ]
+      } else {
+        matches <- grepl(tournament, hosted$tournament_name, ignore.case = TRUE)
+        result <- hosted[matches, ]
+      }
+      if (nrow(result) > 0) {
+        if (!is.null(top_n)) {
+          players <- result[!duplicated(result$player_id),
+                            c("player_id", "position")]
+          players <- players[order(players$position), ]
+          keep <- players$player_id[seq_len(min(top_n, nrow(players)))]
+          result <- result[result$player_id %in% keep, ]
+        }
+        return(result)
+      }
+      cli::cli_inform("Tournament not in hosted data (may be in progress); fetching from ESPN...")
+    }
   }
 
   # Get schedule to find tournament
@@ -42,7 +90,10 @@ load_holes <- function(year = as.integer(format(Sys.Date(), "%Y")),
   } else {
     matches <- grepl(tournament, schedule$tournament_name, ignore.case = TRUE)
     if (!any(matches)) {
-      stop("Tournament not found: ", tournament)
+      cli::cli_abort(c(
+        "Tournament not found: {.val {tournament}}.",
+        "i" = "Use {.code load_schedule({year})} to see the season schedule."
+      ))
     }
     event_id <- schedule$event_id[matches][1]
     tourn_name <- schedule$tournament_name[matches][1]
@@ -61,7 +112,7 @@ load_holes <- function(year = as.integer(format(Sys.Date(), "%Y")),
   }
 
   # Fetch scorecards for each player
-  message(sprintf("Fetching scorecards for %d players...", nrow(leaderboard)))
+  cli::cli_inform("Fetching scorecards for {nrow(leaderboard)} players...")
 
   all_holes <- list()
 
@@ -74,8 +125,10 @@ load_holes <- function(year = as.integer(format(Sys.Date(), "%Y")),
       if (nrow(scorecard) > 0) {
         scorecard$player_id <- player_id
         scorecard$player_name <- player_name
+        scorecard$position <- leaderboard$position[i]
         scorecard$tournament_id <- event_id
         scorecard$tournament_name <- tourn_name
+        scorecard$year <- year
         all_holes[[length(all_holes) + 1]] <- scorecard
       }
     }, error = function(e) {
@@ -91,13 +144,13 @@ load_holes <- function(year = as.integer(format(Sys.Date(), "%Y")),
 
   # Reorder columns
   dplyr::select(result,
-    player_id, player_name, tournament_id, tournament_name,
+    player_id, player_name, position, tournament_id, tournament_name,
     round, hole, par, score, score_type, dplyr::everything()
   )
 }
 
 #' Fetch hole-by-hole for a single player
-#' @keywords internal
+#' @noRd
 fetch_player_holes <- function(event_id, player_id, tour = "pga") {
   endpoint <- paste0("events/", event_id, "/competitions/", event_id,
                      "/competitors/", player_id, "/linescores")
@@ -134,11 +187,12 @@ fetch_player_holes <- function(event_id, player_id, tour = "pga") {
   dplyr::bind_rows(all_rounds)
 }
 
-#' @describeIn load_holes Legacy function for backwards compatibility
+#' @describeIn load_holes Deprecated, use `load_holes()` instead
 #' @param event_id ESPN event identifier (for legacy function)
 #' @param athlete_id ESPN athlete identifier (for legacy function)
 #' @return A tibble with hole-by-hole scoring data
 #' @export
 get_player_scorecards <- function(event_id, athlete_id) {
+  deprecate_warn("0.2.0", "get_player_scorecards()", "load_holes()")
   fetch_player_holes(event_id, athlete_id, "pga")
 }

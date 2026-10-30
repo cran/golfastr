@@ -1,13 +1,17 @@
 #' Load Strokes Gained Statistics
 #'
-#' Returns pre-built strokes gained data from the PGA Tour, with all six
-#' SG categories per player: putting, around the green, approach, off the tee,
-#' tee to green, and total.
+#' Returns strokes gained data from the PGA Tour, with all six SG categories
+#' per player: putting, around the green, approach, off the tee, tee to green,
+#' and total.
 #'
-#' Data is sourced from the PGA Tour and updated with each package release.
-#' To filter by player, use standard dplyr operations on the returned tibble.
+#' By default, downloads the latest data from GitHub releases (updated weekly).
+#' Falls back to the bundled dataset shipped with the package if the download
+#' fails (e.g., no internet connection).
 #'
 #' @param player Optional player name filter (partial match, case-insensitive).
+#' @param use_bundled If \code{TRUE}, skip the download and use the dataset
+#'   bundled with the package. Defaults to \code{FALSE}.
+#' @param year Optional season year filter (e.g., 2026).
 #' @return A tibble with one row per player and columns:
 #'   \itemize{
 #'     \item \code{player_id}: PGA Tour player ID
@@ -24,21 +28,54 @@
 #'   }
 #' @export
 #' @examples
-#' # Get all strokes gained data
-#' sg <- load_strokes_gained()
-#'
-#' # Look up a specific player
-#' load_strokes_gained("Scheffler")
-load_strokes_gained <- function(player = NULL) {
-  data <- strokes_gained
+#' sg <- load_strokes_gained(use_bundled = TRUE)
+#' load_strokes_gained("Scheffler", use_bundled = TRUE, year = 2026)
+#' \donttest{
+#' load_strokes_gained()
+#' }
+load_strokes_gained <- function(player = NULL, use_bundled = FALSE,
+                                year = NULL) {
+  if (use_bundled) {
+    data <- strokes_gained
+  } else {
+    data <- sg_from_release()
+    if (is.null(data)) {
+      cli::cli_inform("Using bundled strokes gained data (may not be latest).")
+      data <- strokes_gained
+    }
+  }
+
+  if (!is.null(year)) {
+    data <- data[data$season == as.integer(year), ]
+    if (nrow(data) == 0) {
+      cli::cli_abort("No strokes gained data for season {.val {year}}.")
+    }
+  }
 
   if (!is.null(player)) {
     matches <- grepl(player, data$player_name, ignore.case = TRUE)
     if (!any(matches)) {
-      stop("No player found matching '", player, "'")
+      cli::cli_abort("No player found matching {.val {player}}.")
     }
     data <- data[matches, ]
   }
 
   data
+}
+
+#' Download strokes gained from GitHub release
+#' @noRd
+sg_from_release <- function() {
+  url <- paste0(
+    "https://github.com/array-carpenter/golfastr/",
+    "releases/download/strokes_gained/strokes_gained.rds"
+  )
+  tryCatch(
+    {
+      con <- url(url)
+      on.exit(close(con))
+      tibble::as_tibble(readRDS(con))
+    },
+    error = function(e) NULL
+  )
 }

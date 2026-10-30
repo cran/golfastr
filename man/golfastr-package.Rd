@@ -8,11 +8,12 @@
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-Fetch Professional Golfers' Association (PGA) Tour tournament data from ESPN \url{https://www.espn.com/golf/} including leaderboards and hole-by-hole scoring. Data is returned in tidy tibble format ready for analysis. Supports local storage via RDS or 'Apache Arrow' Parquet files for fast repeated access. Designed for golf analytics, data journalism, and fantasy sports research.
+Designed for quickly grabbing PGA Tour data. Includes a large data update with shot-level PGA Tour 'ShotLink' data, tee times and course setup, strokes gained, win probability after every hole, a what's in the bag database (WITBDB) of player equipment, an ID crosswalk between 'ESPN' and the PGA Tour, and logo image URLs. Leaderboards and hole-by-hole scoring come from 'ESPN' \url{https://www.espn.com/golf/} for the PGA Tour, LIV Golf, LPGA, DP World Tour and Champions Tour. Completed seasons are served from hosted files for fast repeated access, and data can be saved as RDS, 'Apache Arrow' Parquet or a 'SQLite' database.
 }
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://golfastr.com/}
   \item \url{https://github.com/array-carpenter/golfastr}
   \item Report bugs at \url{https://github.com/array-carpenter/golfastr/issues}
 }

@@ -8,7 +8,8 @@
 load_leaderboard(
   year = as.integer(format(Sys.Date(), "\%Y")),
   tournament = NULL,
-  tour = "pga"
+  tour = "pga",
+  live = FALSE
 )
 
 get_tournament_leaderboard(event_id)
@@ -19,7 +20,11 @@ get_tournament_leaderboard(event_id)
 \item{tournament}{Tournament identifier - either event_id or partial name match.
 If NULL, returns all tournaments for the year.}
 
-\item{tour}{Tour identifier. Currently supports "pga" (default).}
+\item{tour}{Tour identifier: `"pga"` (default), `"liv"`, `"lpga"`,
+`"euro"`, or `"champions"`.}
+
+\item{live}{If TRUE, skip the hosted data and fetch directly from the
+ESPN API. Defaults to FALSE.}
 
 \item{event_id}{ESPN event identifier (for legacy function)}
 }
@@ -41,9 +46,16 @@ A tibble with leaderboard data
 Retrieves leaderboard data for tournaments. Can load a single tournament
 or all tournaments for a year.
 }
+\details{
+For PGA Tour data, completed tournaments are served from pre-built files
+hosted on GitHub releases (updated daily), which is much faster than
+querying ESPN tournament by tournament. The live ESPN API is used as a
+fallback for in-progress tournaments, other tours, or when the hosted
+data is unavailable.
+}
 \section{Functions}{
 \itemize{
-\item \code{get_tournament_leaderboard()}: Legacy function for backwards compatibility
+\item \code{get_tournament_leaderboard()}: Deprecated, use `load_leaderboard()` instead
 
 }}
 \examples{

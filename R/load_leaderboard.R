@@ -3,10 +3,19 @@
 #' Retrieves leaderboard data for tournaments. Can load a single tournament
 #' or all tournaments for a year.
 #'
+#' For PGA Tour data, completed tournaments are served from pre-built files
+#' hosted on GitHub releases (updated daily), which is much faster than
+#' querying ESPN tournament by tournament. The live ESPN API is used as a
+#' fallback for in-progress tournaments, other tours, or when the hosted
+#' data is unavailable.
+#'
 #' @param year Season year (e.g., 2026). Defaults to current year.
 #' @param tournament Tournament identifier - either event_id or partial name match.
 #'   If NULL, returns all tournaments for the year.
-#' @param tour Tour identifier. Currently supports "pga" (default).
+#' @param tour Tour identifier: `"pga"` (default), `"liv"`, `"lpga"`,
+#'   `"euro"`, or `"champions"`.
+#' @param live If TRUE, skip the hosted data and fetch directly from the
+#'   ESPN API. Defaults to FALSE.
 #' @return A tibble with leaderboard data including:
 #'   \itemize{
 #'     \item \code{position}: Final standing
@@ -25,7 +34,29 @@
 #' }
 load_leaderboard <- function(year = as.integer(format(Sys.Date(), "%Y")),
                              tournament = NULL,
-                             tour = "pga") {
+                             tour = "pga",
+                             live = FALSE) {
+
+  # Try pre-built data from GitHub releases first
+  if (!live && tolower(tour) == "pga") {
+    hosted <- release_load("leaderboards", sprintf("leaderboards_%d.rds", year))
+    if (!is.null(hosted)) {
+      if (!is.null(tournament)) {
+        if (tournament %in% hosted$tournament_id) {
+          hosted <- hosted[hosted$tournament_id == tournament, ]
+        } else {
+          matches <- grepl(tournament, hosted$tournament_name, ignore.case = TRUE)
+          hosted <- hosted[matches, ]
+        }
+      }
+      if (nrow(hosted) > 0) {
+        return(hosted)
+      }
+      if (!is.null(tournament)) {
+        cli::cli_inform("Tournament not in hosted data (may be in progress); fetching from ESPN...")
+      }
+    }
+  }
 
   # Get schedule to find tournament(s)
   schedule <- load_schedule(year, tour)
@@ -38,7 +69,10 @@ load_leaderboard <- function(year = as.integer(format(Sys.Date(), "%Y")),
       # Try name match
       matches <- grepl(tournament, schedule$tournament_name, ignore.case = TRUE)
       if (!any(matches)) {
-        stop("Tournament not found: ", tournament)
+        cli::cli_abort(c(
+          "Tournament not found: {.val {tournament}}.",
+          "i" = "Use {.code load_schedule({year})} to see the season schedule."
+        ))
       }
       schedule <- schedule[matches, ]
     }
@@ -64,7 +98,7 @@ load_leaderboard <- function(year = as.integer(format(Sys.Date(), "%Y")),
         all_data[[length(all_data) + 1]] <- lb
       }
     }, error = function(e) {
-      message(sprintf("Failed to load %s: %s", tourn_name, e$message))
+      cli::cli_inform("Failed to load {tourn_name}: {conditionMessage(e)}")
     })
   }
 
@@ -76,7 +110,7 @@ load_leaderboard <- function(year = as.integer(format(Sys.Date(), "%Y")),
 }
 
 #' Fast leaderboard fetch using site API
-#' @keywords internal
+#' @noRd
 fetch_leaderboard_fast <- function(event_id, year, tour = "pga") {
   # Use site API which returns more data in single call
   response <- espn_site_request(
@@ -132,10 +166,11 @@ fetch_leaderboard_fast <- function(event_id, year, tour = "pga") {
   )
 }
 
-#' @describeIn load_leaderboard Legacy function for backwards compatibility
+#' @describeIn load_leaderboard Deprecated, use `load_leaderboard()` instead
 #' @param event_id ESPN event identifier (for legacy function)
 #' @return A tibble with leaderboard data
 #' @export
 get_tournament_leaderboard <- function(event_id) {
+  deprecate_warn("0.2.0", "get_tournament_leaderboard()", "load_leaderboard()")
   fetch_leaderboard_fast(event_id, as.integer(format(Sys.Date(), "%Y")), "pga")
 }

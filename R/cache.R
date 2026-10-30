@@ -4,7 +4,7 @@
 #' standard R user directory per CRAN policy.
 #'
 #' @return Character string with the cache directory path.
-#' @keywords internal
+#' @noRd
 get_cache_dir <- function() {
   tools::R_user_dir("golfastr", "cache")
 }
@@ -27,29 +27,28 @@ clear_cache <- function(confirm = TRUE) {
   cache_dir <- get_cache_dir()
 
   if (!dir.exists(cache_dir)) {
-    message("Cache directory does not exist. Nothing to clear.")
+    cli::cli_inform("Cache directory does not exist. Nothing to clear.")
     return(invisible(NULL))
   }
 
-  files <- list.files(cache_dir, full.names = TRUE)
+  files <- list.files(cache_dir, full.names = TRUE, recursive = TRUE)
 
   if (length(files) == 0) {
-    message("Cache is already empty.")
+    cli::cli_inform("Cache is already empty.")
     return(invisible(NULL))
   }
 
   if (confirm) {
-    message(sprintf("This will delete %d cached file(s) from:\n%s",
-                    length(files), cache_dir))
+    cli::cli_inform("This will delete {length(files)} cached file{?s} from {.path {cache_dir}}")
     response <- readline("Are you sure? (y/n): ")
     if (!tolower(response) %in% c("y", "yes")) {
-      message("Cancelled.")
+      cli::cli_inform("Cancelled.")
       return(invisible(NULL))
     }
   }
 
-  unlink(files)
-  message(sprintf("Cleared %d file(s) from cache.", length(files)))
+  unlink(list.files(cache_dir, full.names = TRUE), recursive = TRUE)
+  cli::cli_inform("Cleared {length(files)} file{?s} from cache.")
   invisible(NULL)
 }
 
@@ -67,12 +66,12 @@ cache_info <- function() {
   cache_dir <- get_cache_dir()
 
   if (!dir.exists(cache_dir)) {
-    message("Cache directory: ", cache_dir)
-    message("Status: Not yet created (will be created on first use)")
+    cli::cli_inform("Cache directory: {.path {cache_dir}}")
+    cli::cli_inform("Status: Not yet created (will be created on first use)")
     return(invisible(NULL))
   }
 
-  files <- list.files(cache_dir, full.names = TRUE)
+  files <- list.files(cache_dir, full.names = TRUE, recursive = TRUE)
   n_files <- length(files)
 
   if (n_files == 0) {
@@ -89,16 +88,16 @@ cache_info <- function() {
     sprintf("%.1f MB", total_size / 1024^2)
   }
 
-  message("golfastr Cache Information")
-  message("-------------------------")
-  message("Location: ", cache_dir)
-  message("Files: ", n_files)
-  message("Total size: ", size_str)
+  cli::cli_inform("golfastr Cache Information")
+  cli::cli_inform("-------------------------")
+  cli::cli_inform("Location: {.path {cache_dir}}")
+  cli::cli_inform("Files: {n_files}")
+  cli::cli_inform("Total size: {size_str}")
 
   if (n_files > 0) {
-    message("\nCached files:")
-    for (f in basename(files)) {
-      message("  - ", f)
+    cli::cli_inform("Cached files:")
+    for (f in list.files(cache_dir, recursive = TRUE)) {
+      cli::cli_inform("  - {f}")
     }
   }
 
@@ -113,7 +112,7 @@ cache_info <- function() {
 #' @param data Data to cache.
 #' @param filename Name for the cached file.
 #' @return Invisible path to the cached file.
-#' @keywords internal
+#' @noRd
 cache_save <- function(data, filename) {
   cache_dir <- get_cache_dir()
   if (!dir.exists(cache_dir)) {
@@ -131,7 +130,7 @@ cache_save <- function(data, filename) {
 #'
 #' @param filename Name of the cached file.
 #' @return The cached data, or NULL if not found.
-#' @keywords internal
+#' @noRd
 cache_load <- function(filename) {
   cache_dir <- get_cache_dir()
   path <- file.path(cache_dir, filename)
@@ -149,7 +148,7 @@ cache_load <- function(filename) {
 #'
 #' @param filename Name of the cached file.
 #' @return Logical indicating if file exists in cache.
-#' @keywords internal
+#' @noRd
 cache_exists <- function(filename) {
   cache_dir <- get_cache_dir()
   path <- file.path(cache_dir, filename)
